@@ -1,0 +1,41 @@
+import pandas as pd
+import chromadb
+import uuid
+
+
+__all__ = ["Portfolio"]
+
+class Portfolio:
+    def __init__(self, file_path="app/resource/portfolio.csv"):
+        self.file_path = file_path
+        self.data = pd.read_csv(file_path)
+        self.chroma_client = chromadb.PersistentClient('vectorstore')
+        self.collection = self.chroma_client.get_or_create_collection(name="portfolio")
+
+    def load_portfolio(self):
+        if not self.collection.count():
+            for _, row in self.data.iterrows():
+                self.collection.add(documents=row["Techstack"],
+                                    metadatas={"links": row["Links"]},
+                                    ids=[str(uuid.uuid4())])
+
+    def query_links(self, skills):
+        if not skills:
+            return []
+        result = self.collection.query(query_texts=skills, n_results=2)
+        metadatas = result.get('metadatas', [])
+    
+        links = []
+        for meta_list in metadatas:
+            for meta in meta_list:
+                link_val = meta.get('links') if isinstance(meta, dict) else None
+                if link_val:
+                    links.append(link_val)
+
+        seen = set()
+        deduped = []
+        for l in links:
+            if l not in seen:
+                seen.add(l)
+                deduped.append(l)
+        return deduped
